@@ -4,8 +4,8 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'nginx_docker/**'      # only run when this folder changes
-      - '.github/workflows/**' # or when workflow changes
+      - 'nginx_docker/**'
+      - '.github/workflows/**'
   pull_request:
     paths:
       - 'nginx_docker/**'
@@ -16,10 +16,20 @@ jobs:
     runs-on: self-hosted
     defaults:
       run:
-        working-directory: nginx_docker  # 👈 run Terraform in this subdir
+        working-directory: nginx_docker
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Determine host IP (Tailscale)
+        id: hostip
+        run: |
+          # prefer Tailscale IP; fallback to localhost if not found
+          IP="$(tailscale ip -4 | head -n1 || true)"
+          if [ -z "$IP" ]; then IP="127.0.0.1"; fi
+          echo "host_ip=$IP" >> $GITHUB_OUTPUT
+          echo "Using host_ip=$IP"
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -27,16 +37,31 @@ jobs:
           terraform_wrapper: false
 
       - name: Terraform Init
+        env:
+          TF_VAR_host_ip: ${{ steps.hostip.outputs.host_ip }}
         run: terraform init
 
       - name: Terraform Plan (PRs)
         if: github.event_name == 'pull_request'
+        env:
+          TF_VAR_host_ip: ${{ steps.hostip.outputs.host_ip }}
         run: terraform plan
 
       - name: Terraform Plan (main)
         if: github.event_name == 'push'
+        env:
+          TF_VAR_host_ip: ${{ steps.hostip.outputs.host_ip }}
         run: terraform plan -out=tfplan
 
       - name: Terraform Apply (main)
         if: github.event_name == 'push'
+        env:
+          TF_VAR_host_ip: ${{ steps.hostip.outputs.host_ip }}
         run: terraform apply -auto-approve tfplan
+
+      - name: Upload nginx URL artifact
+        if: always()   # upload even if plan/apply fails; remove if you prefer
+        uses: actions/upload-artifact@v4
+        with:
+          name: nginx-url
+          path: nginx_docker/nginx-url.txt
