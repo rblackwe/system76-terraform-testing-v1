@@ -14,7 +14,7 @@ jobs:
   guard-self-hosted:
     runs-on: ubuntu-latest
     env:
-      REQUIRED_LABELS: "self-hosted,linux,x64"   # adjust to match your jobs
+      REQUIRED_LABELS: "self-hosted,Linux,X64"
       ISSUE_FILE: ".github/runner-unavailable.md"
       ISSUE_TITLE: "No self-hosted runners available for labels: self-hosted,linux,x64"
     steps:
