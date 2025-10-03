@@ -1,0 +1,62 @@
+name: Check self-hosted runners and file issue
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/30 * * * *" # every 30 minutes (optional)
+
+permissions:
+  actions: read     # needed to list self-hosted runners
+  contents: read
+  issues: write     # needed to create issues
+
+jobs:
+  guard-self-hosted:
+    runs-on: ubuntu-latest
+    env:
+      # Adjust labels to the ones your jobs require
+      REQUIRED_LABELS: "self-hosted,linux,x64"
+      ISSUE_FILE: ".github/runner-unavailable.md"
+    steps:
+      - name: Check runner availability
+        id: check
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const required = process.env.REQUIRED_LABELS.split(',').map(s=>s.trim()).filter(Boolean);
+            // List self-hosted runners for this repo (paginated)
+            const runners = await github.paginate(
+              github.rest.actions.listSelfHostedRunnersForRepo,
+              { owner: context.repo.owner, repo: context.repo.repo, per_page: 100 }
+            );
+
+            // online + has all required labels?
+            const matchingOnline = runners.filter(r =>
+              r.status === 'online' &&
+              required.every(req => r.labels.some(l => l.name === req))
+            );
+
+            core.info(`Found ${matchingOnline.length} matching online runner(s).`);
+            core.setOutput('ok', String(matchingOnline.length > 0));
+            core.setOutput('count', String(matchingOnline.length));
+      - name: Prepare issue body
+        if: steps.check.outputs.ok != 'true'
+        run: |
+          mkdir -p .github
+          {
+            echo "# 🚨 No self-hosted runners available"
+            echo
+            echo "- **Required labels:** \`${REQUIRED_LABELS}\`"
+            echo "- **Detected online runners with these labels:** ${{ steps.check.outputs.count }}"
+            echo "- **Workflow:** ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo "- **When:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+            echo
+            echo "Please investigate the self-hosted runner fleet (power, network, service status, or label drift)."
+          } > "${ISSUE_FILE}"
+      - name: Create issue (from file)
+        if: steps.check.outputs.ok != 'true'
+        uses: peter-evans/create-issue-from-file@v5
+        with:
+          title: "No self-hosted runners available for labels: ${REQUIRED_LABELS}"
+          content-filepath: ${{ env.ISSUE_FILE }}
+          labels: runner:offline, infra
