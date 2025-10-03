@@ -4,10 +4,20 @@ terraform {
       source  = "kreuzwerker/docker"
       version = "~> 3.0.1"
     }
+    local = {
+      source  = "hashicorp/local"
+      version = "~> 2.5"
+    }
   }
 }
 
 provider "docker" {}
+provider "local" {}
+
+variable "host_ip" {
+  type        = string
+  description = "Host IP (LAN or Tailscale). Example: 100.82.170.21"
+}
 
 resource "docker_image" "nginx" {
   name         = "nginx:latest"
@@ -17,10 +27,23 @@ resource "docker_image" "nginx" {
 resource "docker_container" "nginx" {
   image = docker_image.nginx.image_id
   name  = "tutorial"
+
   ports {
     internal = 80
     external = 8000
   }
 }
 
+locals {
+  nginx_url = "http://${var.host_ip}:8000/"
+}
 
+# Create an artifacts file with the link
+resource "local_file" "nginx_url" {
+  filename = "${path.module}/nginx-url.txt"
+  content  = local.nginx_url
+}
+
+output "nginx_url" {
+  value = local.nginx_url
+}
