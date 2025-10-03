@@ -38,11 +38,7 @@ locals {
   nginx_url = "http://${var.host_ip}:8000/"
 }
 
-# Create an artifacts file with the link
-resource "local_file" "nginx_url" {
-  filename = "${path.module}/nginx-url.txt"
-  content  = local.nginx_url
-}
+
 
 resource "local_file" "nginx_url" {
   filename = "${path.module}/nginx-url.html"
