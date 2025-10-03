@@ -2,17 +2,26 @@ name: Terraform Apply
 
 on:
   push:
-    branches:
-      - main   # only run on main, adjust if needed
+    branches: [ main ]
+    paths:
+      - 'nginx_docker/**'      # only run when this folder changes
+      - '.github/workflows/**' # or when workflow changes
+  pull_request:
+    paths:
+      - 'nginx_docker/**'
+      - '.github/workflows/**'
 
 jobs:
   terraform:
-    runs-on: self-hosted   # this will match your system76-pc runner
+    runs-on: [self-hosted, system76-pc]  # your runner label
+    defaults:
+      run:
+        working-directory: nginx_docker  # 👈 run Terraform in this subdir
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Terraform
+      - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_wrapper: false
@@ -20,8 +29,14 @@ jobs:
       - name: Terraform Init
         run: terraform init
 
-      - name: Terraform Plan
+      - name: Terraform Plan (PRs)
+        if: github.event_name == 'pull_request'
+        run: terraform plan
+
+      - name: Terraform Plan (main)
+        if: github.event_name == 'push'
         run: terraform plan -out=tfplan
 
-      - name: Terraform Apply
+      - name: Terraform Apply (main)
+        if: github.event_name == 'push'
         run: terraform apply -auto-approve tfplan
