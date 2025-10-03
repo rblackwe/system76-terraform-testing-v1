@@ -52,7 +52,20 @@ jobs:
             echo "- **Workflow:** ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
             echo "- **When:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
             echo
-            echo "Please investigate the self-hosted runner fleet (power, network, service status, or label drift)."
+            echo "### 🛠️ Recovery steps"
+            echo '```bash'
+            echo "ssh rblackwe@system76-pc"
+            echo "cd /home/rblackwe/actions-runner"
+            echo "./run.sh"
+            echo '```'
+            echo
+            echo "Or, better yet, ensure the runner is installed as a service so it starts automatically:"
+            echo '```bash'
+            echo "cd /home/rblackwe/actions-runner"
+            echo "sudo ./svc.sh install"
+            echo "sudo ./svc.sh start"
+            echo "sudo ./svc.sh status"
+            echo '```'
           } > "${ISSUE_FILE}"
 
       # ---------- De-dupe WITHOUT using the deprecated search API ----------
