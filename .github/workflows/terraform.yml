@@ -13,26 +13,25 @@ on:
 
 jobs:
   terraform:
-    runs-on: self-hosted
-    timeout-minutes: 5
+    runs-on: self-hosted          # consider: [self-hosted, Linux, X64]
+    timeout-minutes: 5            # counts only after a runner picks up the job
+    defaults:
+      run:
+        working-directory: nginx_docker
     steps:
-      - run: |
+      - name: If it's stuck waiting...
+        run: |
           echo "If you see 'Waiting for a runner to pick up this job...',"
           echo "make sure the self-hosted runner is online:"
           echo "ssh rblackwe@system76-pc"
           echo "cd /home/rblackwe/actions-runner && ./run.sh"
-    defaults:
-      run:
-        working-directory: nginx_docker
 
-    steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Determine host IP (Tailscale)
         id: hostip
         run: |
-          # prefer Tailscale IP; fallback to localhost if not found
           IP="$(tailscale ip -4 | head -n1 || true)"
           if [ -z "$IP" ]; then IP="127.0.0.1"; fi
           echo "host_ip=$IP" >> $GITHUB_OUTPUT
@@ -67,7 +66,7 @@ jobs:
         run: terraform apply -auto-approve tfplan
 
       - name: Upload nginx URL artifact html
-        if: always()   # upload even if plan/apply fails; remove if you prefer
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: nginx-url
