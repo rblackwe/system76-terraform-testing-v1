@@ -3,34 +3,34 @@ name: Check self-hosted runners and file issue
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/30 * * * *" # every 30 minutes (optional)
+    - cron: "*/30 * * * *"
 
 permissions:
-  actions: read     # needed to list self-hosted runners
+  actions: read
   contents: read
-  issues: write     # needed to create issues
+  issues: write
 
 jobs:
   guard-self-hosted:
     runs-on: ubuntu-latest
     env:
-      # Adjust labels to the ones your jobs require
-      REQUIRED_LABELS: "self-hosted,linux,x64"
+      REQUIRED_LABELS: "self-hosted,linux,x64"   # adjust to match your jobs
       ISSUE_FILE: ".github/runner-unavailable.md"
+      ISSUE_TITLE: "No self-hosted runners available for labels: self-hosted,linux,x64"
     steps:
-      - name: Check runner availability
+      - name: Check runner availability (uses PAT with Admin:read)
         id: check
         uses: actions/github-script@v8
         with:
+          github-token: ${{ secrets.REPO_ADMIN_TOKEN }}
           script: |
             const required = process.env.REQUIRED_LABELS.split(',').map(s=>s.trim()).filter(Boolean);
-            // List self-hosted runners for this repo (paginated)
+
             const runners = await github.paginate(
               github.rest.actions.listSelfHostedRunnersForRepo,
               { owner: context.repo.owner, repo: context.repo.repo, per_page: 100 }
             );
 
-            // online + has all required labels?
             const matchingOnline = runners.filter(r =>
               r.status === 'online' &&
               required.every(req => r.labels.some(l => l.name === req))
@@ -39,6 +39,7 @@ jobs:
             core.info(`Found ${matchingOnline.length} matching online runner(s).`);
             core.setOutput('ok', String(matchingOnline.length > 0));
             core.setOutput('count', String(matchingOnline.length));
+
       - name: Prepare issue body
         if: steps.check.outputs.ok != 'true'
         run: |
@@ -53,10 +54,41 @@ jobs:
             echo
             echo "Please investigate the self-hosted runner fleet (power, network, service status, or label drift)."
           } > "${ISSUE_FILE}"
-      - name: Create issue (from file)
+
+      # ------- Optional: de-dupe so we don't open duplicates -------
+      - name: Find existing open issue with same title
         if: steps.check.outputs.ok != 'true'
+        id: find_issue
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ secrets.REPO_ADMIN_TOKEN }}
+          script: |
+            const title = process.env.ISSUE_TITLE;
+            const { data } = await github.rest.search.issuesAndPullRequests({
+              q: `repo:${context.repo.owner}/${context.repo.repo} is:issue is:open in:title "${title}"`
+            });
+            const hit = data.items.find(i => i.title === title);
+            core.setOutput('issue_number', hit ? String(hit.number) : '');
+            core.setOutput('found', hit ? 'true' : 'false');
+
+      - name: Comment on existing issue
+        if: steps.find_issue.outputs.found == 'true'
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ secrets.REPO_ADMIN_TOKEN }}
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number("${{ steps.find_issue.outputs.issue_number }}"),
+              body: `Another detection at ${new Date().toISOString()}.\n\nWorkflow: ${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
+            });
+
+      - name: Create issue (from file)
+        if: steps.check.outputs.ok != 'true' && steps.find_issue.outputs.found != 'true'
         uses: peter-evans/create-issue-from-file@v5
         with:
-          title: "No self-hosted runners available for labels: ${REQUIRED_LABELS}"
+          token: ${{ secrets.REPO_ADMIN_TOKEN }}   # or omit to use GITHUB_TOKEN
+          title: ${{ env.ISSUE_TITLE }}
           content-filepath: ${{ env.ISSUE_FILE }}
           labels: runner:offline, infra
