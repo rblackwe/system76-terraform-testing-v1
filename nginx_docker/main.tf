@@ -45,7 +45,7 @@ resource "local_file" "nginx_url" {
   content  = <<EOT
 <html>
   <body>
-    <p>Nginx is running here: 
+    <p>a Nginx is running here: 
       <a href="${local.nginx_url}" target="_blank">${local.nginx_url}</a>
     </p>
   </body>
