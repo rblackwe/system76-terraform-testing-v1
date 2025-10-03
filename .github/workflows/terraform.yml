@@ -15,6 +15,12 @@ jobs:
   terraform:
     runs-on: self-hosted
     timeout-minutes: 5
+    steps:
+      - run: |
+          echo "If you see 'Waiting for a runner to pick up this job...',"
+          echo "make sure the self-hosted runner is online:"
+          echo "ssh rblackwe@system76-pc"
+          echo "cd /home/rblackwe/actions-runner && ./run.sh"
     defaults:
       run:
         working-directory: nginx_docker
