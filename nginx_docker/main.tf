@@ -44,6 +44,19 @@ resource "local_file" "nginx_url" {
   content  = local.nginx_url
 }
 
+resource "local_file" "nginx_url" {
+  filename = "${path.module}/nginx-url.html"
+  content  = <<EOT
+<html>
+  <body>
+    <p>Nginx is running here: 
+      <a href="${local.nginx_url}" target="_blank">${local.nginx_url}</a>
+    </p>
+  </body>
+</html>
+EOT
+}
+
 output "nginx_url" {
   value = local.nginx_url
 }
