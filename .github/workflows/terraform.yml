@@ -59,9 +59,10 @@ jobs:
           TF_VAR_host_ip: ${{ steps.hostip.outputs.host_ip }}
         run: terraform apply -auto-approve tfplan
 
-      - name: Upload nginx URL artifact
+      - name: Upload nginx URL artifact html
         if: always()   # upload even if plan/apply fails; remove if you prefer
         uses: actions/upload-artifact@v4
         with:
           name: nginx-url
-          path: nginx_docker/nginx-url.txt
+          path: nginx_docker/nginx-url.html
+
