@@ -66,3 +66,11 @@ jobs:
           name: nginx-url
           path: nginx_docker/nginx-url.html
 
+      - name: Add link to run summary
+        run: |
+          URL="http://${{ steps.hostip.outputs.host_ip }}:8000/"
+          {
+            echo "## ✅ Nginx is up"
+            echo ""
+            echo "[Open Nginx on system76-pc](${URL})"
+          } >> "$GITHUB_STEP_SUMMARY"
