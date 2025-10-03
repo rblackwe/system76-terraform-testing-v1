@@ -22,7 +22,7 @@ jobs:
         id: check
         uses: actions/github-script@v8
         with:
-          github-token: ${{ secrets.REPO_ADMIN_TOKEN }}
+          github-token: ${{ secrets.REPO_ADMIN_TOKEN }}   # PAT with Repository Administration: Read + Issues RW
           script: |
             const required = process.env.REQUIRED_LABELS.split(',').map(s=>s.trim()).filter(Boolean);
 
@@ -55,8 +55,8 @@ jobs:
             echo "Please investigate the self-hosted runner fleet (power, network, service status, or label drift)."
           } > "${ISSUE_FILE}"
 
-      # ------- Optional: de-dupe so we don't open duplicates -------
-      - name: Find existing open issue with same title
+      # ---------- De-dupe WITHOUT using the deprecated search API ----------
+      - name: Find existing open issue with same title (no search API)
         if: steps.check.outputs.ok != 'true'
         id: find_issue
         uses: actions/github-script@v8
@@ -64,10 +64,19 @@ jobs:
           github-token: ${{ secrets.REPO_ADMIN_TOKEN }}
           script: |
             const title = process.env.ISSUE_TITLE;
-            const { data } = await github.rest.search.issuesAndPullRequests({
-              q: `repo:${context.repo.owner}/${context.repo.repo} is:issue is:open in:title "${title}"`
-            });
-            const hit = data.items.find(i => i.title === title);
+
+            // Paginate all OPEN issues and look for exact title match
+            const issues = await github.paginate(
+              github.rest.issues.listForRepo,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                per_page: 100
+              }
+            );
+
+            const hit = issues.find(i => i.title === title);
             core.setOutput('issue_number', hit ? String(hit.number) : '');
             core.setOutput('found', hit ? 'true' : 'false');
 
@@ -92,3 +101,4 @@ jobs:
           title: ${{ env.ISSUE_TITLE }}
           content-filepath: ${{ env.ISSUE_FILE }}
           labels: runner:offline, infra
+
